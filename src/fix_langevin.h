@@ -11,6 +11,10 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
+// Stadium langevin not implemented for spherical and ellipsoidal particles
+// Also not implemented for rotational degrees of freedom
+// Use input file with care
+
 #ifdef FIX_CLASS
 
 FixStyle(langevin,FixLangevin)
@@ -28,16 +32,19 @@ class FixLangevin : public Fix {
  public:
   FixLangevin(class LAMMPS *, int, char **);
   virtual ~FixLangevin();
+
   int setmask();
   void init();
   void setup(int);
   virtual void post_force(int);
   void post_force_respa(int, int, int);
   virtual void end_of_step();
-  void reset_target(double);
-  void reset_dt();
+  
   int modify_param(int, char **);
   virtual double compute_scalar();
+  
+  /* Memomry Methods
+   */
   double memory_usage();
   virtual void *extract(const char *, int &);
   void grow_arrays(int);
@@ -45,11 +52,37 @@ class FixLangevin : public Fix {
   int pack_exchange(int, double *);
   int unpack_exchange(int, double *);
 
+  /* Restart methods 
+   */
+  /*
+  void write_restart(FILE *);
+  void restart(char *);
+  */
+  
+  int pack_restart(int, double *);
+  void unpack_restart(int, int);
+  int maxsize_restart();
+  int size_restart(int);
+  
+  void reset_target(double);
+  void reset_dt();
+  
+  /* New local function to enable stadium langevin fixes
+   * Determines the 
+   * @param requires 4 vales xmin, xmax, ymin and s_ymax
+   * or @param require 6 values xmin, xmax, ymin, ymax, zmin and zmax
+   */
+  double minvalue(double, double, double, double);
+  
+  double minvalue(double, double, double, double, double, double);
+
  protected:
   int gjfflag,oflag,tallyflag,zeroflag,tbiasflag;
-  int flangevin_allocated;
+  
   double ascale;
   double t_start,t_stop,t_period,t_target;
+  
+  
   double *gfactor1,*gfactor2,*ratio;
   double energy,energy_onestep;
   double tsqrt;
@@ -63,24 +96,36 @@ class FixLangevin : public Fix {
   double **flangevin;
   double *tforce;
   double **franprev;
+  
+  
+  double current_time;
+  
+  
   int nvalues;
 
   char *id_temp;
   class Compute *temperature;
 
   int nlevels_respa;
+  int nrestart;
   class RanMars *random;
   int seed;
 
+  /// Stadium Langevin parameters
+    int stadflag; /// Stadium langevan flag
+  double s_xmin, s_xmax, s_ymin, s_ymax, s_zmin, s_zmax, s_width; /// Stadium langevin parameters
+  double *gamma_stadium; /// Stadium damping coefficients one per atom
+  
+  
   // comment next line to turn off templating
-#define TEMPLATED_FIX_LANGEVIN
+//#define TEMPLATED_FIX_LANGEVIN
 #ifdef TEMPLATED_FIX_LANGEVIN
   template < int Tp_TSTYLEATOM, int Tp_GJF, int Tp_TALLY,
 	     int Tp_BIAS, int Tp_RMASS, int Tp_ZERO >
   void post_force_templated();
 #else
   void post_force_untemplated(int, int, int,
-			      int, int, int);
+			      int, int, int, int);
 #endif
   void omega_thermostat();
   void angmom_thermostat();
@@ -156,5 +201,7 @@ W: Group for fix_modify temp != fix group
 The fix_modify command is specifying a temperature computation that
 computes a temperature on a different group of atoms than the fix
 itself operates on.  This is probably not what you want to do.
+
+
 
 */

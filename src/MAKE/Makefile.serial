@@ -1,4 +1,4 @@
-# serial = GNU g++ compiler, no MPI
+# serial = g++ compiler, no MPI, internal FFT
 
 SHELL = /bin/sh
 
