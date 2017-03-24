@@ -301,7 +301,7 @@ void FixNVEStadium::initial_integrate(int vflag)
 	v[i][0] += dtfm * (f[i][0] + flangevin[i][1]);
 	v[i][1] += dtfm * (f[i][1] + flangevin[i][2]);
 	if (s_zmax > 100000.0 && s_zmin < -100000.00) {
-	  v[i][2] = dtfm*(f[i][2]);
+	  v[i][2] += dtfm*(f[i][2]);
 	} else { 
 	  v[i][2] += dtfm * (f[i][2] + flangevin[i][3]);
 	}
