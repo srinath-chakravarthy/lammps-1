@@ -49,7 +49,7 @@ ComputeVoronoi::ComputeVoronoi(LAMMPS *lmp, int narg, char **arg) :
 {
   int sgroup;
 
-  size_peratom_cols = 2;
+  size_peratom_cols = 3;
   peratom_flag = 1;
   comm_forward = 1;
   faces_flag = 0;
@@ -456,10 +456,14 @@ void ComputeVoronoi::checkOccupation()
     // the system, so we can only look up occupancy for tags that are
     // smaller or equal to the recorded largest tag.
     tagint mytag = atom->tag[i];
-    if (mytag > oldmaxtag)
+    if (mytag > oldmaxtag){
       voro[i][0] = 0;
-    else
+      voro[i][2] = mytag;
+    }
+    else{
       voro[i][0] = occvec[mytag-1];
+      voro[i][2] = mytag;
+    }
   }
 }
 
