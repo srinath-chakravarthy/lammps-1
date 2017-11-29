@@ -1,4 +1,4 @@
-/* ----------------------------------------------------------------------
+/* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -10,13 +10,11 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-/* ----------------------------------------------------------------------
-   Contributing author: Oliver Henrich (EPCC, University of Edinburgh)
-------------------------------------------------------------------------- */
 
 #ifdef PAIR_CLASS
 
-PairStyle(oxdna_xstk,PairOxdnaXstk)
+PairStyle(oxdna/xstk,PairOxdnaXstk)
+PairStyle(oxdna2/xstk,PairOxdnaXstk)
 
 #else
 

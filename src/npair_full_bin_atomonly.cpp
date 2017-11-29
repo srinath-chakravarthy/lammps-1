@@ -40,7 +40,6 @@ void NPairFullBinAtomonly::build(NeighList *list)
   double **x = atom->x;
   int *type = atom->type;
   int *mask = atom->mask;
-  tagint *tag = atom->tag;
   tagint *molecule = atom->molecule;
   int nlocal = atom->nlocal;
   if (includegroup) nlocal = atom->nfirst;
@@ -65,7 +64,7 @@ void NPairFullBinAtomonly::build(NeighList *list)
     // loop over all atoms in surrounding bins in stencil including self
     // skip i = j
 
-    ibin = coord2bin(x[i]);
+    ibin = atom2bin[i];
 
     for (k = 0; k < nstencil; k++) {
       for (j = binhead[ibin+stencil[k]]; j >= 0; j = bins[j]) {

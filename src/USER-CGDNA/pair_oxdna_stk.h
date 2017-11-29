@@ -1,4 +1,4 @@
-/* ----------------------------------------------------------------------
+/* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -10,13 +10,10 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-/* ----------------------------------------------------------------------
-   Contributing author: Oliver Henrich (EPCC, University of Edinburgh)
-------------------------------------------------------------------------- */
 
 #ifdef PAIR_CLASS
 
-PairStyle(oxdna_stk,PairOxdnaStk)
+PairStyle(oxdna/stk,PairOxdnaStk)
 
 #else
 
@@ -47,6 +44,7 @@ class PairOxdnaStk : public Pair {
 
  protected:
   // stacking interaction
+  virtual double stacking_strength(double);
   double **epsilon_st, **a_st, **cut_st_0, **cut_st_c;
   double **cut_st_lo, **cut_st_hi;
   double **cut_st_lc, **cut_st_hc, **b_st_lo, **b_st_hi, **shift_st;
@@ -59,6 +57,8 @@ class PairOxdnaStk : public Pair {
   double **b_st6, **dtheta_st6_c;
   double **a_st1, **cosphi_st1_ast, **b_st1, **cosphi_st1_c;
   double **a_st2, **cosphi_st2_ast, **b_st2, **cosphi_st2_c;
+
+  int seqdepflag;
 
   virtual void allocate();
 };

@@ -1,13 +1,13 @@
 /*
 //@HEADER
 // ************************************************************************
-// 
+//
 //                        Kokkos v. 2.0
 //              Copyright (2014) Sandia Corporation
-// 
+//
 // Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 // the U.S. Government retains certain rights in this software.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -36,14 +36,17 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 // Questions? Contact  H. Carter Edwards (hcedwar@sandia.gov)
-// 
+//
 // ************************************************************************
 //@HEADER
 */
 
+#include <Kokkos_Macros.hpp>
+#ifdef KOKKOS_ENABLE_CUDA
+
 #include <iostream>
 #include <iomanip>
-#include <stdint.h>
+#include <cstdint>
 
 #include <gtest/gtest.h>
 
@@ -66,10 +69,11 @@
 #include <Kokkos_ErrorReporter.hpp>
 #include <TestErrorReporter.hpp>
 
+#include <TestViewCtorPropEmbeddedDim.hpp>
+
 //----------------------------------------------------------------------------
 
 
-#ifdef KOKKOS_ENABLE_CUDA
 
 namespace Test {
 
@@ -90,6 +94,10 @@ protected:
 
 TEST_F( cuda , dyn_view_api) {
   TestDynViewAPI< double , Kokkos::Cuda >();
+}
+
+TEST_F( cuda, viewctorprop_embedded_dim ) {
+  TestViewCtorProp_EmbeddedDim< Kokkos::Cuda >::test_vcpt( 2, 3 );
 }
 
 TEST_F( cuda , staticcrsgraph )
@@ -237,5 +245,7 @@ TEST_F(cuda, ErrorReporter)
 
 }
 
+#else
+void KOKKOS_CONTAINERS_UNIT_TESTS_TESTCUDA_PREVENT_EMPTY_LINK_ERROR() {}
 #endif  /* #ifdef KOKKOS_ENABLE_CUDA */
 

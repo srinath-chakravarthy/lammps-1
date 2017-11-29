@@ -4,3 +4,4 @@
 python_SYSINC = -I/usr/include/python2.7
 python_SYSLIB = -lpython2.7 -lnsl -ldl -lpthread -lutil -lm -Xlinker -export-dynamic
 python_SYSPATH = 
+PYTHON=python

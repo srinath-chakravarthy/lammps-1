@@ -1,13 +1,13 @@
 /*
 //@HEADER
 // ************************************************************************
-// 
+//
 //                        Kokkos v. 2.0
 //              Copyright (2014) Sandia Corporation
-// 
+//
 // Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 // the U.S. Government retains certain rights in this software.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -36,16 +36,17 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 // Questions? Contact  H. Carter Edwards (hcedwar@sandia.gov)
-// 
+//
 // ************************************************************************
 //@HEADER
 */
 
+#include <Kokkos_Macros.hpp>
+#ifdef KOKKOS_ENABLE_THREADS
+
 #include <gtest/gtest.h>
 
 #include <Kokkos_Core.hpp>
-
-#if defined( KOKKOS_ENABLE_PTHREAD )
 
 #include <Kokkos_Bitset.hpp>
 #include <Kokkos_UnorderedMap.hpp>
@@ -68,6 +69,8 @@
 
 #include <Kokkos_ErrorReporter.hpp>
 #include <TestErrorReporter.hpp>
+
+#include <TestViewCtorPropEmbeddedDim.hpp>
 
 namespace Test {
 
@@ -100,6 +103,10 @@ protected:
 
 TEST_F( threads , dyn_view_api) {
   TestDynViewAPI< double , Kokkos::Threads >();
+}
+
+TEST_F( threads, viewctorprop_embedded_dim ) {
+  TestViewCtorProp_EmbeddedDim< Kokkos::Threads >::test_vcpt( 2, 3 );
 }
 
 TEST_F( threads , staticcrsgraph )
@@ -201,6 +208,7 @@ TEST_F(threads, ErrorReporter)
 
 } // namespace Test
 
-
-#endif /* #if defined( KOKKOS_ENABLE_PTHREAD ) */
+#else
+void KOKKOS_CONTAINERS_UNIT_TESTS_TESTTHREADS_PREVENT_EMPTY_LINK_ERROR() {}
+#endif /* #if defined( KOKKOS_ENABLE_THREADS ) */
 

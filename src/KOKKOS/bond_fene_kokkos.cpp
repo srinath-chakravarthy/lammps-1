@@ -125,7 +125,6 @@ void BondFENEKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
       Kokkos::parallel_for(Kokkos::RangePolicy<DeviceType, TagBondFENECompute<0,0> >(0,nbondlist),*this);
     }
   }
-  DeviceType::fence();
 
   k_warning_flag.template modify<DeviceType>();
   k_warning_flag.template sync<LMPHostType>();
@@ -254,10 +253,10 @@ void BondFENEKokkos<DeviceType>::allocate()
   k_epsilon = DAT::tdual_ffloat_1d("BondFene::epsilon",n+1);
   k_sigma = DAT::tdual_ffloat_1d("BondFene::sigma",n+1);
 
-  d_k = k_k.d_view;
-  d_r0 = k_r0.d_view;
-  d_epsilon = k_epsilon.d_view;
-  d_sigma = k_sigma.d_view;
+  d_k = k_k.template view<DeviceType>();
+  d_r0 = k_r0.template view<DeviceType>();
+  d_epsilon = k_epsilon.template view<DeviceType>();
+  d_sigma = k_sigma.template view<DeviceType>();
 }
 
 /* ----------------------------------------------------------------------

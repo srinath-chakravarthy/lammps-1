@@ -398,24 +398,27 @@ void Respa::init()
    setup before run
 ------------------------------------------------------------------------- */
 
-void Respa::setup()
+void Respa::setup(int flag)
 {
   if (comm->me == 0 && screen) {
     fprintf(screen,"Setting up r-RESPA run ...\n");
-    fprintf(screen,"  Unit style    : %s\n", update->unit_style);
-    fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n", update->ntimestep);
-    fprintf(screen,"  Time steps    :");
-    for (int ilevel=0; ilevel < nlevels; ++ilevel)
-      fprintf(screen," %d:%g",ilevel+1, step[ilevel]);
-    fprintf(screen,"\n  r-RESPA fixes :");
-    for (int l=0; l < modify->n_post_force_respa; ++l) {
-      Fix *f = modify->fix[modify->list_post_force_respa[l]];
-      if (f->respa_level >= 0)
-        fprintf(screen," %d:%s[%s]",
-                MIN(f->respa_level+1,nlevels),f->style,f->id);
+    if (flag) {
+      fprintf(screen,"  Unit style    : %s\n", update->unit_style);
+      fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n",
+              update->ntimestep);
+      fprintf(screen,"  Time steps    :");
+      for (int ilevel=0; ilevel < nlevels; ++ilevel)
+        fprintf(screen," %d:%g",ilevel+1, step[ilevel]);
+      fprintf(screen,"\n  r-RESPA fixes :");
+      for (int l=0; l < modify->n_post_force_respa; ++l) {
+        Fix *f = modify->fix[modify->list_post_force_respa[l]];
+        if (f->respa_level >= 0)
+          fprintf(screen," %d:%s[%s]",
+                  MIN(f->respa_level+1,nlevels),f->style,f->id);
+      }
+      fprintf(screen,"\n");
+      timer->print_timeout(screen);
     }
-    fprintf(screen,"\n");
-    timer->print_timeout(screen);
   }
 
   update->setupflag = 1;
@@ -439,6 +442,7 @@ void Respa::setup()
   domain->box_too_small_check();
   modify->setup_pre_neighbor();
   neighbor->build();
+  modify->setup_post_neighbor();
   neighbor->ncalls = 0;
 
   // compute all forces
@@ -482,7 +486,7 @@ void Respa::setup()
 
   sum_flevel_f();
   modify->setup(vflag);
-  output->setup();
+  output->setup(flag);
   update->setupflag = 0;
 }
 
@@ -514,6 +518,7 @@ void Respa::setup_minimal(int flag)
     domain->box_too_small_check();
     modify->setup_pre_neighbor();
     neighbor->build();
+    modify->setup_post_neighbor();
     neighbor->ncalls = 0;
   }
 
@@ -665,6 +670,11 @@ void Respa::recurse(int ilevel)
         }
         neighbor->build();
         timer->stamp(Timer::NEIGH);
+        if (modify->n_post_neighbor) {
+          modify->post_neighbor();
+          timer->stamp(Timer::MODIFY);
+        }
+
       } else if (ilevel == 0) {
         timer->stamp();
         comm->forward_comm();

@@ -27,7 +27,7 @@ fix_modify     myCMAP energy yes :pre
 This command enables CMAP crossterms to be added to simulations which
 use the CHARMM force field.  These are relevant for any CHARMM model
 of a peptide or protein sequences that is 3 or more amino-acid
-residues long; see "(Buck)"_#Buck and "(Brooks)"_#Brooks for details,
+residues long; see "(Buck)"_#Buck and "(Brooks)"_#Brooks2 for details,
 including the analytic energy expressions for CMAP interactions.  The
 CMAP crossterms add additional potential energy contributions to pairs
 of overlapping phi-psi dihedrals of amino-acids, which are important
@@ -87,12 +87,20 @@ the note below about how to include the CMAP energy when performing an
 
 [Restart, fix_modify, output, run start/stop, minimize info:]
 
-No information about this fix is written to "binary restart
-files"_restart.html.
+This fix writes the list of CMAP crossterms to "binary restart
+files"_restart.html.  See the "read_restart"_read_restart.html command
+for info on how to re-specify a fix in an input script that reads a
+restart file, so that the operation of the fix continues in an
+uninterrupted fashion.
 
 The "fix_modify"_fix_modify.html {energy} option is supported by this
 fix to add the potential "energy" of the CMAP interactions system's
 potential energy as part of "thermodynamic output"_thermo_style.html.
+
+The "fix_modify"_fix_modify.html {virial} option is supported by this
+fix to add the contribution due to the interaction between atoms to
+the system's virial as part of "thermodynamic output"_thermo_style.html.
+The default is {virial yes}
 
 This fix computes a global scalar which can be accessed by various
 "output commands"_Section_howto.html#howto_15.  The scalar is the
@@ -128,5 +136,5 @@ LAMMPS"_Section_start.html#start_3 section for more info on packages.
 [(Buck)] Buck, Bouguet-Bonnet, Pastor, MacKerell Jr., Biophys J, 90, L36
 (2006).
 
-:link(Brooks)
+:link(Brooks2)
 [(Brooks)] Brooks, Brooks, MacKerell Jr., J Comput Chem, 30, 1545 (2009).

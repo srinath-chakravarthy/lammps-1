@@ -1,13 +1,13 @@
 /*
 //@HEADER
 // ************************************************************************
-// 
+//
 //                        Kokkos v. 2.0
 //              Copyright (2014) Sandia Corporation
-// 
+//
 // Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 // the U.S. Government retains certain rights in this software.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
@@ -36,10 +36,12 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 // Questions? Contact  H. Carter Edwards (hcedwar@sandia.gov)
-// 
+//
 // ************************************************************************
 //@HEADER
 */
+
+#include <Kokkos_Macros.hpp>
 #if defined( KOKKOS_ATOMIC_HPP ) && ! defined( KOKKOS_ATOMIC_GENERIC_HPP )
 #define KOKKOS_ATOMIC_GENERIC_HPP
 #include <Kokkos_Macros.hpp>
@@ -236,7 +238,7 @@ T atomic_fetch_oper( const Oper& op, volatile T * const dest ,
   *dest = Oper::apply(return_val, val);
   Impl::unlock_address_host_space( (void*) dest );
   return return_val;
-#else
+#elif defined(KOKKOS_ACTIVE_EXECUTION_MEMORY_SPACE_CUDA)
   // This is a way to (hopefully) avoid dead lock in a warp
   T return_val;
   int done = 0;
@@ -275,7 +277,7 @@ T atomic_oper_fetch( const Oper& op, volatile T * const dest ,
   *dest = return_val;
   Impl::unlock_address_host_space( (void*) dest );
   return return_val;
-#else
+#elif defined(KOKKOS_ACTIVE_EXECUTION_MEMORY_SPACE_CUDA)
   T return_val;
   // This is a way to (hopefully) avoid dead lock in a warp
   int done = 0;
@@ -424,6 +426,6 @@ T atomic_rshift_fetch(volatile T * const dest, const unsigned int val) {
   return Impl::atomic_oper_fetch(Impl::RShiftOper<T,const unsigned int>(),dest,val);
 }
 
-
-}
+} // namespace Kokkos
 #endif
+

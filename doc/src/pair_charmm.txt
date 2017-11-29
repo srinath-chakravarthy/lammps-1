@@ -7,6 +7,7 @@
 :line
 
 pair_style lj/charmm/coul/charmm command :h3
+pair_style lj/charmm/coul/charmm/intel command :h3
 pair_style lj/charmm/coul/charmm/omp command :h3
 pair_style lj/charmm/coul/charmm/implicit command :h3
 pair_style lj/charmm/coul/charmm/implicit/omp command :h3
@@ -49,8 +50,8 @@ args = list of arguments for a particular style :ul
 
 pair_style lj/charmm/coul/charmm 8.0 10.0
 pair_style lj/charmm/coul/charmm 8.0 10.0 7.0 9.0
-pair_style lj/charmmfsw/coul/charmmfsh 8.0 10.0 
-pair_style lj/charmmfsw/coul/charmmfsh 8.0 10.0 7.0 9.0
+pair_style lj/charmmfsw/coul/charmmfsh 10.0 12.0
+pair_style lj/charmmfsw/coul/charmmfsh 10.0 12.0 9.0
 pair_coeff * * 100.0 2.0
 pair_coeff 1 1 100.0 2.0 150.0 3.5 :pre
 
@@ -84,9 +85,9 @@ CHARMM force field.
 The styles with {charmm} (not {charmmfsw} or {charmmfsh}) in their
 name are the older, original LAMMPS implementations.  They compute the
 LJ and Coulombic interactions with an energy switching function (esw,
-a cubic polynomial, shown in the formula below), which ramps the
-energy smoothly to zero between the inner and outer cutoff.  This can
-cause irregularities in pair-wise forces (due to the discontinuous 2nd
+shown in the formula below as S(r)), which ramps the energy smoothly
+to zero between the inner and outer cutoff.  This can cause
+irregularities in pair-wise forces (due to the discontinuous 2nd
 derivative of energy at the boundaries of the switching region), which
 in some cases can result in detectable artifacts in an MD simulation.
 
@@ -94,16 +95,25 @@ The newer styles with {charmmfsw} or {charmmfsh} in their name replace
 the energy switching with force switching (fsw) and force shifting
 (fsh) functions, for LJ and Coulombic interactions respectively.
 These follow the formulas and description given in
-"(Steinbach)"_#Steinbach and "(Brooks)"_#Brooks to minimize these
+"(Steinbach)"_#Steinbach and "(Brooks)"_#Brooks1 to minimize these
 artifacts.
 
 NOTE: The newer {charmmfsw} or {charmmfsh} styles were released in
 March 2017.  We recommend they be used instead of the older {charmm}
-styles.  Eventually code from the new styles will propagate into the
-related pair styles (e.g. implicit, accelerator, free energy
-variants).
+styles.  This includes the newer "dihedral_style
+charmmfsw"_dihedral_charmm.html command.  Eventually code from the new
+styles will propagate into the related pair styles (e.g. implicit,
+accelerator, free energy variants).
 
-The general CHARMM formulas are as follows
+NOTE: The newest CHARMM pair styles reset the Coulombic energy
+conversion factor used internally in the code, from the LAMMPS value
+to the CHARMM value, as if it were effectively a parameter of the
+force field.  This is because the CHARMM code uses a slightly
+different value for the this conversion factor in "real
+units"_units.html (Kcal/mole), namely CHARMM = 332.0716, LAMMPS =
+332.06371.  This is to enable more precise agreement by LAMMPS with
+the CHARMM force field energies and forces, when using one of these
+two CHARMM pair styles.
 
 :c,image(Eqs/pair_charmm.jpg)
 
@@ -186,7 +196,7 @@ LAMMPS"_Section_start.html#start_3 section for more info.
 
 You can specify the accelerated styles explicitly in your input script
 by including their suffix, or you can use the "-suffix command-line
-switch"_Section_start.html#start_7 when you invoke LAMMPS, or you can
+switch"_Section_start.html#start_6 when you invoke LAMMPS, or you can
 use the "suffix"_suffix.html command in your input script.
 
 See "Section 5"_Section_accelerate.html of the manual for
@@ -248,7 +258,7 @@ the MOLECULE and KSPACE packages are installed by default.
 
 :line
 
-:link(Brooks)
+:link(Brooks1)
 [(Brooks)] Brooks, et al, J Comput Chem, 30, 1545 (2009).
 
 :link(pair-MacKerell)

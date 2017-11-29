@@ -165,8 +165,8 @@ void Min::init()
 
   if (neigh_every != 1 || neigh_delay != 0 || neigh_dist_check != 1) {
     if (comm->me == 0)
-      error->warning(FLERR,
-                     "Resetting reneighboring criteria during minimization");
+      error->warning(FLERR, "Using 'neigh_modify every 1 delay 0 check"
+                     " yes' setting during minimization");
   }
 
   neighbor->every = 1;
@@ -180,13 +180,17 @@ void Min::init()
    setup before run
 ------------------------------------------------------------------------- */
 
-void Min::setup()
+void Min::setup(int flag)
 {
   if (comm->me == 0 && screen) {
     fprintf(screen,"Setting up %s style minimization ...\n",
             update->minimize_style);
-    fprintf(screen,"  Unit style    : %s\n", update->unit_style);
-    timer->print_timeout(screen);
+    if (flag) {
+      fprintf(screen,"  Unit style    : %s\n", update->unit_style);
+      fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n",
+              update->ntimestep);
+      timer->print_timeout(screen);
+    }
   }
   update->setupflag = 1;
 
@@ -194,7 +198,12 @@ void Min::setup()
   // cannot be done in init() b/c update init() is before modify init()
 
   nextra_global = modify->min_dof();
-  if (nextra_global) fextra = new double[nextra_global];
+  if (nextra_global) {
+    fextra = new double[nextra_global];
+    if (comm->me == 0 && screen)
+      fprintf(screen,"WARNING: Energy due to %d extra global DOFs will"
+              " be included in minimizer energies\n",nextra_global);
+  }
 
   // compute for potential energy
 
@@ -237,6 +246,7 @@ void Min::setup()
   domain->box_too_small_check();
   modify->setup_pre_neighbor();
   neighbor->build();
+  modify->setup_post_neighbor();
   neighbor->ncalls = 0;
 
   // remove these restriction eventually
@@ -294,7 +304,7 @@ void Min::setup()
       requestor[m]->min_xf_get(m);
 
   modify->setup(vflag);
-  output->setup();
+  output->setup(flag);
   update->setupflag = 0;
 
   // stats for initial thermo output
@@ -336,6 +346,7 @@ void Min::setup_minimal(int flag)
     domain->box_too_small_check();
     modify->setup_pre_neighbor();
     neighbor->build();
+    modify->setup_post_neighbor();
     neighbor->ncalls = 0;
   }
 
@@ -494,12 +505,15 @@ double Min::energy_force(int resetflag)
     if (triclinic) domain->lamda2x(atom->nlocal+atom->nghost);
     timer->stamp(Timer::COMM);
     if (modify->n_min_pre_neighbor) {
-      timer->stamp();
       modify->min_pre_neighbor();
       timer->stamp(Timer::MODIFY);
     }
     neighbor->build();
     timer->stamp(Timer::NEIGH);
+    if (modify->n_min_post_neighbor) {
+      modify->min_post_neighbor();
+      timer->stamp(Timer::MODIFY);
+    }
   }
 
   ev_set(update->ntimestep);

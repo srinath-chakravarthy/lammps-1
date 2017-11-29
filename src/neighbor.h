@@ -54,7 +54,6 @@ class Neighbor : protected Pointers {
 
   double *bboxlo,*bboxhi;          // ptrs to full domain bounding box
                                    // different for orthog vs triclinic
-  double *zeroes;                  // vector of zeroes for shear history init
 
   // exclusion info, used by NeighPair
 
@@ -122,6 +121,7 @@ class Neighbor : protected Pointers {
 
   void exclusion_group_group_delete(int, int);  // rm a group-group exclusion
   int exclude_setting();            // return exclude value to accelerator pkg
+  class NeighRequest *find_request(void *);  // find a neighbor request
 
   bigint memory_usage();
 
@@ -204,7 +204,7 @@ class Neighbor : protected Pointers {
   int init_pair();
   virtual void init_topology();
 
-  void morph_other();
+  void morph_unique();
   void morph_skip();
   void morph_granular();
   void morph_halffull();
