@@ -102,8 +102,8 @@ void PairLJLongDipoleLong::settings(int narg, char **arg)
   if (allocated) {					// reset explicit cuts
     int i,j;
     for (i = 1; i <= atom->ntypes; i++)
-      for (j = i+1; j <= atom->ntypes; j++)
-	if (setflag[i][j]) cut_lj[i][j] = cut_lj_global;
+      for (j = i; j <= atom->ntypes; j++)
+        if (setflag[i][j]) cut_lj[i][j] = cut_lj_global;
   }
 }
 
@@ -264,22 +264,6 @@ void PairLJLongDipoleLong::init_style()
 }
 
 /* ----------------------------------------------------------------------
-   neighbor callback to inform pair style of neighbor list to use
-   regular or rRESPA
-------------------------------------------------------------------------- */
-
-void PairLJLongDipoleLong::init_list(int id, NeighList *ptr)
-{
-  if (id == 0) list = ptr;
-  else if (id == 1) listinner = ptr;
-  else if (id == 2) listmiddle = ptr;
-  else if (id == 3) listouter = ptr;
-
-  if (id)
-    error->all(FLERR,"Pair style lj/long/dipole/long does not currently support respa");
-}
-
-/* ----------------------------------------------------------------------
    init for one type pair i,j and corresponding j,i
 ------------------------------------------------------------------------- */
 
@@ -314,7 +298,7 @@ double PairLJLongDipoleLong::init_one(int i, int j)
   //if (cut_respa && MIN(cut_lj[i][j],cut_coul) < cut_respa[3])
     //error->all(FLERR,"Pair cutoff < Respa interior cutoff");
 
-  if (offset_flag) {
+  if (offset_flag && (cut_lj[i][j] > 0.0)) {
     double ratio = sigma[i][j] / cut_lj[i][j];
     offset[i][j] = 4.0 * epsilon[i][j] * (pow(ratio,12.0) - pow(ratio,6.0));
   } else offset[i][j] = 0.0;
@@ -343,9 +327,9 @@ void PairLJLongDipoleLong::write_restart(FILE *fp)
     for (j = i; j <= atom->ntypes; j++) {
       fwrite(&setflag[i][j],sizeof(int),1,fp);
       if (setflag[i][j]) {
-	fwrite(&epsilon_read[i][j],sizeof(double),1,fp);
-	fwrite(&sigma_read[i][j],sizeof(double),1,fp);
-	fwrite(&cut_lj_read[i][j],sizeof(double),1,fp);
+        fwrite(&epsilon_read[i][j],sizeof(double),1,fp);
+        fwrite(&sigma_read[i][j],sizeof(double),1,fp);
+        fwrite(&cut_lj_read[i][j],sizeof(double),1,fp);
       }
     }
 }
@@ -367,14 +351,14 @@ void PairLJLongDipoleLong::read_restart(FILE *fp)
       if (me == 0) fread(&setflag[i][j],sizeof(int),1,fp);
       MPI_Bcast(&setflag[i][j],1,MPI_INT,0,world);
       if (setflag[i][j]) {
-	if (me == 0) {
-	  fread(&epsilon_read[i][j],sizeof(double),1,fp);
-	  fread(&sigma_read[i][j],sizeof(double),1,fp);
-	  fread(&cut_lj_read[i][j],sizeof(double),1,fp);
-	}
-	MPI_Bcast(&epsilon_read[i][j],1,MPI_DOUBLE,0,world);
-	MPI_Bcast(&sigma_read[i][j],1,MPI_DOUBLE,0,world);
-	MPI_Bcast(&cut_lj_read[i][j],1,MPI_DOUBLE,0,world);
+        if (me == 0) {
+          fread(&epsilon_read[i][j],sizeof(double),1,fp);
+          fread(&sigma_read[i][j],sizeof(double),1,fp);
+          fread(&cut_lj_read[i][j],sizeof(double),1,fp);
+        }
+        MPI_Bcast(&epsilon_read[i][j],1,MPI_DOUBLE,0,world);
+        MPI_Bcast(&sigma_read[i][j],1,MPI_DOUBLE,0,world);
+        MPI_Bcast(&cut_lj_read[i][j],1,MPI_DOUBLE,0,world);
       }
     }
 }

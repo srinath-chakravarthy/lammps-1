@@ -57,7 +57,7 @@ simulations is as follows:
 Perform all-atom simulations on the system to be coarse grained.
 Generate a trajectory mapped to the coarse-grained model.
 Create input files for the MS-CG library.
-Run the range finder functionality of the MS-CG library.  
+Run the range finder functionality of the MS-CG library.
 Run the force matching functionality of the MS-CG library.
 Check the results of the force matching.
 Run coarse-grained simulations using the new coarse-grained potentials. :ol
@@ -70,7 +70,7 @@ Step 2 can be performed using a Python script (what is the name?)
 provided with the MS-CG library which defines the coarse-grained model
 and converts a standard LAMMPS dump file for an all-atom simulation
 (step 1) into a LAMMPS dump file which has the positions of and forces
-on the coarse-grained beads.  
+on the coarse-grained beads.
 
 In step 3, an input file named "control.in" is needed by the MS-CG
 library which sets parameters for the range finding and force matching
@@ -83,7 +83,7 @@ produces additional output files.  The range finder functionality
 (step 4) outputs files defining pair and bonded interaction ranges.
 The force matching functionality (step 5) outputs tabulated force
 files for every interaction in the system. Other diagnostic files can
-also be output depending on the paramters in the MS-CG library input
+also be output depending on the parameters in the MS-CG library input
 script.  Again, see the documentation provided with the MS-CG library
 for more info.
 
@@ -108,7 +108,7 @@ LAMMPS"_Section_start.html#start_3 section for more info.
 
 The MS-CG library uses C++11, which may not be supported by older
 compilers. The MS-CG library also has some additional numeric library
-dependencies, which are describd in its documentation.
+dependencies, which are described in its documentation.
 
 Currently, the MS-CG library is not setup to run in parallel with MPI,
 so this fix can only be used in a serial LAMMPS build and run

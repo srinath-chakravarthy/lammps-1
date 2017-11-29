@@ -49,10 +49,6 @@ enum{LIMITMAX,LIMITEXACT};
 #define IDMAX 1024*1024
 #define INVOKED_PERATOM 8
 
-// allocate space for static class variable
-
-ComputeChunkAtom *ComputeChunkAtom::cptr;
-
 /* ---------------------------------------------------------------------- */
 
 ComputeChunkAtom::ComputeChunkAtom(LAMMPS *lmp, int narg, char **arg) :
@@ -222,10 +218,10 @@ ComputeChunkAtom::ComputeChunkAtom(LAMMPS *lmp, int narg, char **arg) :
       if (limit && !compress) limitfirst = 1;
       iarg += 2;
       if (limit) {
-        if (iarg+1 > narg)
+        if (iarg > narg)
           error->all(FLERR,"Illegal compute chunk/atom command");
-        if (strcmp(arg[iarg+1],"max") == 0) limitstyle = LIMITMAX;
-        else if (strcmp(arg[iarg+1],"exact") == 0) limitstyle = LIMITEXACT;
+        if (strcmp(arg[iarg],"max") == 0) limitstyle = LIMITMAX;
+        else if (strcmp(arg[iarg],"exact") == 0) limitstyle = LIMITEXACT;
         else error->all(FLERR,"Illegal compute chunk/atom command");
         iarg++;
       }
@@ -493,7 +489,7 @@ ComputeChunkAtom::~ComputeChunkAtom()
 {
   // check nfix in case all fixes have already been deleted
 
-  if (modify->nfix) modify->delete_fix(id_fix);
+  if (id_fix && modify->nfix) modify->delete_fix(id_fix);
   delete [] id_fix;
 
   memory->destroy(chunk);
@@ -616,6 +612,7 @@ void ComputeChunkAtom::setup()
 {
   if (nchunkflag == ONCE) setup_chunks();
   if (idsflag == ONCE) compute_ichunk();
+  else invoked_ichunk = -1;
 }
 
 /* ----------------------------------------------------------------------
@@ -1087,8 +1084,7 @@ void ComputeChunkAtom::compress_chunk_ids()
     memory->destroy(listall);
 
   } else {
-    cptr = this;
-    comm->ring(n,sizeof(int),list,1,idring,NULL,0);
+    comm->ring(n,sizeof(int),list,1,idring,NULL,(void *)this,0);
   }
 
   memory->destroy(list);
@@ -1120,8 +1116,9 @@ void ComputeChunkAtom::compress_chunk_ids()
    hash ends up storing all unique IDs across all procs
 ------------------------------------------------------------------------- */
 
-void ComputeChunkAtom::idring(int n, char *cbuf)
+void ComputeChunkAtom::idring(int n, char *cbuf, void *ptr)
 {
+  ComputeChunkAtom *cptr = (ComputeChunkAtom *)ptr;
   tagint *list = (tagint *) cbuf;
   std::map<tagint,int> *hash = cptr->hash;
   for (int i = 0; i < n; i++) (*hash)[list[i]] = 0;
@@ -1298,7 +1295,7 @@ int ComputeChunkAtom::setup_sphere_bins()
   }
 
   // if pbcflag set, sradmax must be < 1/2 box in any periodic dim
-  // treat orthongonal and triclinic the same
+  // treat orthogonal and triclinic the same
   // check every time bins are created
 
   if (pbcflag) {
@@ -1363,7 +1360,7 @@ int ComputeChunkAtom::setup_cylinder_bins()
   }
 
   // if pbcflag set, sradmax must be < 1/2 box in any periodic non-axis dim
-  // treat orthongonal and triclinic the same
+  // treat orthogonal and triclinic the same
   // check every time bins are created
 
   if (pbcflag) {

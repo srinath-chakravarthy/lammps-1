@@ -86,7 +86,7 @@ machine via HTTPS:
 or, if you have set up your GitHub account for using SSH keys, via SSH:
 
   $ git clone git@github.com:<your user name>/lammps.git :pre
-  
+
 You can find the proper URL by clicking the "Clone or download"-button:
 
 :c,image(JPG/tutorial_https_block.png)
@@ -336,12 +336,15 @@ commit and push again:
  $ git commit -m "Merged Axel's suggestions and updated text"
  $ git push git@github.com:Pakketeretet2/lammps :pre
 
+This merge also shows up on the lammps Github page:
+
+:c,image(JPG/tutorial_reverse_pull_request7.png)
 
 :line
 
 [After a merge]
 
-When everything is fine, the feature branch is merged into the master branch.
+When everything is fine, the feature branch is merged into the master branch:
 
 :c,image(JPG/tutorial_merged.png)
 

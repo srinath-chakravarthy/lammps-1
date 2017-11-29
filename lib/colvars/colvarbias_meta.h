@@ -19,7 +19,10 @@
 #include "colvargrid.h"
 
 /// Metadynamics bias (implementation of \link colvarbias \endlink)
-class colvarbias_meta : public colvarbias {
+class colvarbias_meta 
+  : public virtual colvarbias, 
+    public virtual colvarbias_ti
+{
 
 public:
 
@@ -35,9 +38,24 @@ public:
   Communication comm;
 
   colvarbias_meta(char const *key);
-  virtual int init(std::string const &conf);
   virtual ~colvarbias_meta();
+
+  virtual int init(std::string const &conf);
+  virtual int init_well_tempered_params(std::string const &conf);
+  virtual int init_ebmeta_params(std::string const &conf);
+
+  virtual int clear_state_data();
+
   virtual int update();
+  virtual int update_grid_params();
+  virtual int update_bias();
+  virtual int update_grid_data();
+  virtual int replica_share();
+
+  virtual int calc_energy(std::vector<colvarvalue> const &values =
+                          std::vector<colvarvalue>(0));
+  virtual int calc_forces(std::vector<colvarvalue> const &values =
+                          std::vector<colvarvalue>(0));
 
   virtual std::string const get_state_params() const;
   virtual int set_state_params(std::string const &state_conf);
@@ -66,7 +84,10 @@ protected:
   /// Write the hill logfile
   bool           b_hills_traj;
   /// Logfile of hill management (creation and deletion)
-  cvm::ofstream  hills_traj_os;
+  std::ostream  *hills_traj_os;
+
+  /// Name of the hill logfile
+  std::string const hills_traj_file_name() const;
 
   /// \brief List of hills used on this bias (total); if a grid is
   /// employed, these don't need to be updated at every time step
@@ -102,18 +123,18 @@ protected:
   /// \brief Calculate the values of the hills, incrementing
   /// bias_energy
   virtual void calc_hills(hill_iter  h_first,
-                           hill_iter  h_last,
-                           cvm::real &energy,
-                           std::vector<colvarvalue> const &values = std::vector<colvarvalue> (0));
+                          hill_iter  h_last,
+                          cvm::real &energy,
+                          std::vector<colvarvalue> const &values = std::vector<colvarvalue>(0));
 
   /// \brief Calculate the forces acting on the i-th colvar,
   /// incrementing colvar_forces[i]; must be called after calc_hills
   /// each time the values of the colvars are changed
   virtual void calc_hills_force(size_t const &i,
-                                 hill_iter h_first,
-                                 hill_iter h_last,
-                                 std::vector<colvarvalue> &forces,
-                                 std::vector<colvarvalue> const &values = std::vector<colvarvalue> (0));
+                                hill_iter h_first,
+                                hill_iter h_last,
+                                std::vector<colvarvalue> &forces,
+                                std::vector<colvarvalue> const &values = std::vector<colvarvalue>(0));
 
 
   /// Height of new hills
@@ -229,7 +250,7 @@ protected:
   std::string            replica_hills_file;
 
   /// \brief Output stream corresponding to replica_hills_file
-  cvm::ofstream          replica_hills_os;
+  std::ostream          *replica_hills_os;
 
   /// Position within replica_hills_file (when reading it)
   int                    replica_hills_file_pos;

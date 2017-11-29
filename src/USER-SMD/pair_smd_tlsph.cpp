@@ -1066,7 +1066,7 @@ void PairTlsph::coeff(int narg, char **arg) {
 	Lookup[HEAT_CAPACITY][itype] = force->numeric(FLERR, arg[ioffset + 7]);
 
 	Lookup[LAME_LAMBDA][itype] = Lookup[YOUNGS_MODULUS][itype] * Lookup[POISSON_RATIO][itype]
-			/ ((1.0 + Lookup[POISSON_RATIO][itype] * (1.0 - 2.0 * Lookup[POISSON_RATIO][itype])));
+			/ ((1.0 + Lookup[POISSON_RATIO][itype]) * (1.0 - 2.0 * Lookup[POISSON_RATIO][itype]));
 	Lookup[SHEAR_MODULUS][itype] = Lookup[YOUNGS_MODULUS][itype] / (2.0 * (1.0 + Lookup[POISSON_RATIO][itype]));
 	Lookup[M_MODULUS][itype] = Lookup[LAME_LAMBDA][itype] + 2.0 * Lookup[SHEAR_MODULUS][itype];
 	Lookup[SIGNAL_VELOCITY][itype] = sqrt(
@@ -1731,8 +1731,7 @@ void PairTlsph::init_style() {
 
 // request a granular neighbor list
 	int irequest = neighbor->request(this);
-	neighbor->requests[irequest]->half = 0;
-	neighbor->requests[irequest]->gran = 1;
+	neighbor->requests[irequest]->size = 1;
 
 // set maxrad_dynamic and maxrad_frozen for each type
 // include future Fix pour particles as dynamic

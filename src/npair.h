@@ -23,19 +23,19 @@ class NPair : protected Pointers {
   int istyle;                   // 1-N index into pairnames
   class NBin *nb;               // ptr to NBin instance I depend on
   class NStencil *ns;           // ptr to NStencil instance I depend on
-
   bigint last_build;            // last timestep build performed
-  bigint last_copy_bin_setup;   // last timestep I invoked copy_bin_setup_info()
-  bigint last_copy_bin;         // last step I invoked copy_bin_info()
-  bigint last_copy_stencil;     // last step I invoked copy_bin_stencil_info()
+
+  double cutoff_custom;         // cutoff set by requestor
 
   NPair(class LAMMPS *);
-  virtual ~NPair() {}
+  virtual ~NPair();
+  void post_constructor(class NeighRequest *);
   virtual void copy_neighbor_info();
   void build_setup();
   virtual void build(class NeighList *) = 0;
 
  protected:
+  double **mycutneighsq;         // per-type cutoffs when user specified
 
   // data from Neighbor class
 
@@ -47,7 +47,6 @@ class NPair : protected Pointers {
   double cut_inner_sq;
   double cut_middle_sq;
   double cut_middle_inside_sq;
-  double *zeroes;
   double *bboxlo,*bboxhi;
 
   // exclusion data from Neighbor class
@@ -61,8 +60,10 @@ class NPair : protected Pointers {
   int *ex1_bit,*ex2_bit;           // pairs of group bits to exclude
 
   int nex_mol;                     // # of entries in molecule exclusion list
-  int *ex_mol_group;               // molecule group #'s to exclude
   int *ex_mol_bit;                 // molecule group bits to exclude
+  int *ex_mol_group;               // molecule group #'s to exclude
+  int *ex_mol_intra;               // 0 = exclude if in 2 molecules (inter)
+                                   // 1 = exclude if in same molecule (intra)
 
   // special data from Neighbor class
 
@@ -75,9 +76,9 @@ class NPair : protected Pointers {
   int mbinx,mbiny,mbinz;
   int mbinxlo,mbinylo,mbinzlo;
   double bininvx,bininvy,bininvz;
-  int *bins;
+  int *atom2bin,*bins;
   int *binhead;
-  
+
   // data from NStencil class
 
   int nstencil;
@@ -93,7 +94,6 @@ class NPair : protected Pointers {
 
   // methods for all NPair variants
 
-  void copy_bin_setup_info();
   virtual void copy_bin_info();
   virtual void copy_stencil_info();
 

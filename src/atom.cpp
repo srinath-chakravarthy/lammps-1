@@ -40,6 +40,10 @@
 #include "memory.h"
 #include "error.h"
 
+#ifdef LMP_USER_INTEL
+#include "neigh_request.h"
+#endif
+
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
@@ -99,7 +103,11 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
   uCond = uMech = uChem = uCG = uCGnew = NULL;
   duChem = NULL;
   dpdTheta = NULL;
-  ssaAIR = NULL;
+
+  // USER-MESO
+
+  cc = cc_flux = NULL;
+  edpd_temp = edpd_flux = edpd_cv = NULL;
 
   // USER-SMD
 
@@ -165,7 +173,7 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
   cs_flag = csforce_flag = vforce_flag = etag_flag = 0;
 
   rho_flag = e_flag = cv_flag = vest_flag = 0;
-  dpd_flag = 0;
+  dpd_flag = edpd_flag = tdpd_flag = 0;
 
   // USER-SMD
 
@@ -296,7 +304,12 @@ Atom::~Atom()
   memory->destroy(uCG);
   memory->destroy(uCGnew);
   memory->destroy(duChem);
-  memory->destroy(ssaAIR);
+
+  memory->destroy(cc);
+  memory->destroy(cc_flux);
+  memory->destroy(edpd_temp);
+  memory->destroy(edpd_flux);
+  memory->destroy(edpd_cv);
 
   memory->destroy(nspecial);
   memory->destroy(special);
@@ -331,9 +344,11 @@ Atom::~Atom()
     delete [] iname[i];
     memory->destroy(ivector[i]);
   }
-  for (int i = 0; i < ndvector; i++) {
-    delete [] dname[i];
-    memory->destroy(dvector[i]);
+  if (dvector != NULL) {
+    for (int i = 0; i < ndvector; i++) {
+      delete [] dname[i];
+      memory->destroy(dvector[i]);
+    }
   }
 
   memory->sfree(iname);
@@ -438,12 +453,12 @@ void Atom::create_avec(const char *style, int narg, char **arg, int trysuffix)
   // if molecular system:
   // atom IDs must be defined
   // force atom map to be created
-  // map style may be reset by map_init() and its call to map_style_set()
+  // map style will be reset to array vs hash to by map_init()
 
   molecular = avec->molecular;
   if (molecular && tag_enable == 0)
     error->all(FLERR,"Atom IDs must be used for molecular systems");
-  if (molecular) map_style = 1;
+  if (molecular) map_style = 3;
 }
 
 /* ----------------------------------------------------------------------
@@ -578,6 +593,7 @@ void Atom::modify_params(int narg, char **arg)
                    "Atom_modify map command after simulation box is defined");
       if (strcmp(arg[iarg+1],"array") == 0) map_user = 1;
       else if (strcmp(arg[iarg+1],"hash") == 0) map_user = 2;
+      else if (strcmp(arg[iarg+1],"yes") == 0) map_user = 3;
       else error->all(FLERR,"Illegal atom_modify command");
       map_style = map_user;
       iarg += 2;
@@ -1510,12 +1526,13 @@ void Atom::set_mass(double *values)
 }
 
 /* ----------------------------------------------------------------------
-   check that all masses have been set
+   check that all per-atom-type masses have been set
 ------------------------------------------------------------------------- */
 
 void Atom::check_mass(const char *file, int line)
 {
   if (mass == NULL) return;
+  if (rmass_flag) return;
   for (int itype = 1; itype <= ntypes; itype++)
     if (mass_setflag[itype] == 0) 
       error->all(file,line,"Not all per-type masses are set");
@@ -1634,7 +1651,7 @@ int Atom::find_molecule(char *id)
 
 /* ----------------------------------------------------------------------
    add info to current atom ilocal from molecule template onemol and its iatom
-   offset = atom ID preceeding IDs of atoms in this molecule
+   offset = atom ID preceding IDs of atoms in this molecule
    called by fixes and commands that add molecules
 ------------------------------------------------------------------------- */
 
@@ -1882,6 +1899,53 @@ void Atom::setup_sort_bins()
   bininvy = nbiny / (bboxhi[1]-bboxlo[1]);
   bininvz = nbinz / (bboxhi[2]-bboxlo[2]);
 
+  #ifdef LMP_USER_INTEL
+  int intel_neigh = 0;
+  if (neighbor->nrequest) {
+    if (neighbor->requests[0]->intel) intel_neigh = 1;
+  } else if (neighbor->old_nrequest)
+    if (neighbor->old_requests[0]->intel) intel_neigh = 1;
+  if (intel_neigh && userbinsize == 0.0) {
+    if (neighbor->binsizeflag) bininv = 1.0/neighbor->binsize_user;
+
+    double nx_low = neighbor->bboxlo[0];
+    double ny_low = neighbor->bboxlo[1];
+    double nz_low = neighbor->bboxlo[2];
+    double nxbbox = neighbor->bboxhi[0] - nx_low;
+    double nybbox = neighbor->bboxhi[1] - ny_low;
+    double nzbbox = neighbor->bboxhi[2] - nz_low;
+    int nnbinx = static_cast<int> (nxbbox * bininv);
+    int nnbiny = static_cast<int> (nybbox * bininv);
+    int nnbinz = static_cast<int> (nzbbox * bininv);
+    if (domain->dimension == 2) nnbinz = 1;
+
+    if (nnbinx == 0) nnbinx = 1;
+    if (nnbiny == 0) nnbiny = 1;
+    if (nnbinz == 0) nnbinz = 1;
+
+    double binsizex = nxbbox/nnbinx;
+    double binsizey = nybbox/nnbiny;
+    double binsizez = nzbbox/nnbinz;
+
+    bininvx = 1.0 / binsizex;
+    bininvy = 1.0 / binsizey;
+    bininvz = 1.0 / binsizez;
+
+    int lxo = (bboxlo[0] - nx_low) * bininvx;
+    int lyo = (bboxlo[1] - ny_low) * bininvy;
+    int lzo = (bboxlo[2] - nz_low) * bininvz;
+    bboxlo[0] = nx_low + static_cast<double>(lxo) / bininvx;
+    bboxlo[1] = ny_low + static_cast<double>(lyo) / bininvy;
+    bboxlo[2] = nz_low + static_cast<double>(lzo) / bininvz;
+    nbinx = static_cast<int>((bboxhi[0] - bboxlo[0]) * bininvx) + 1;
+    nbiny = static_cast<int>((bboxhi[1] - bboxlo[1]) * bininvy) + 1;
+    nbinz = static_cast<int>((bboxhi[2] - bboxlo[2]) * bininvz) + 1;
+    bboxhi[0] = bboxlo[0] + static_cast<double>(nbinx) / bininvx;
+    bboxhi[1] = bboxlo[1] + static_cast<double>(nbiny) / bininvy;
+    bboxhi[2] = bboxlo[2] + static_cast<double>(nbinz) / bininvz;
+  }
+  #endif
+
   if (1.0*nbinx*nbiny*nbinz > INT_MAX)
     error->one(FLERR,"Too many atom sorting bins");
 
@@ -1950,7 +2014,7 @@ void Atom::add_callback(int flag)
 
 void Atom::delete_callback(const char *id, int flag)
 {
-  if(id==NULL) return;
+  if (id == NULL) return;
 
   int ifix;
   for (ifix = 0; ifix < modify->nfix; ifix++)
@@ -2142,6 +2206,7 @@ void *Atom::extract(char *name)
   if (strcmp(name, "damage") == 0) return (void *) damage;
 
   if (strcmp(name,"dpdTheta") == 0) return (void *) dpdTheta;
+  if (strcmp(name,"edpd_temp") == 0) return (void *) edpd_temp;
 
   return NULL;
 }

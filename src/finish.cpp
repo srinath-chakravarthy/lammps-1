@@ -162,25 +162,27 @@ void Finish::end(int flag)
 
       // CPU use on MPI tasks and OpenMP threads
 
-      if (lmp->kokkos) {
-        const char fmt2[] =
-          "%.1f%% CPU use with %d MPI tasks x %d OpenMP threads\n";
-        if (screen) fprintf(screen,fmt2,cpu_loop,nprocs,
-                            lmp->kokkos->num_threads);
-        if (logfile) fprintf(logfile,fmt2,cpu_loop,nprocs,
-                             lmp->kokkos->num_threads);
-      } else {
+      if (timeflag) {
+        if (lmp->kokkos) {
+          const char fmt2[] =
+            "%.1f%% CPU use with %d MPI tasks x %d OpenMP threads\n";
+          if (screen) fprintf(screen,fmt2,cpu_loop,nprocs,
+                              lmp->kokkos->num_threads);
+          if (logfile) fprintf(logfile,fmt2,cpu_loop,nprocs,
+                               lmp->kokkos->num_threads);
+        } else {
 #if defined(_OPENMP)
-        const char fmt2[] =
-        "%.1f%% CPU use with %d MPI tasks x %d OpenMP threads\n";
-        if (screen) fprintf(screen,fmt2,cpu_loop,nprocs,nthreads);
-        if (logfile) fprintf(logfile,fmt2,cpu_loop,nprocs,nthreads);
+          const char fmt2[] =
+            "%.1f%% CPU use with %d MPI tasks x %d OpenMP threads\n";
+          if (screen) fprintf(screen,fmt2,cpu_loop,nprocs,nthreads);
+          if (logfile) fprintf(logfile,fmt2,cpu_loop,nprocs,nthreads);
 #else
-        const char fmt2[] =
-          "%.1f%% CPU use with %d MPI tasks x no OpenMP threads\n";
-        if (screen) fprintf(screen,fmt2,cpu_loop,nprocs);
-        if (logfile) fprintf(logfile,fmt2,cpu_loop,nprocs);
+          const char fmt2[] =
+            "%.1f%% CPU use with %d MPI tasks x no OpenMP threads\n";
+          if (screen) fprintf(screen,fmt2,cpu_loop,nprocs);
+          if (logfile) fprintf(logfile,fmt2,cpu_loop,nprocs);
 #endif
+        }
       }
     }
   }
@@ -247,7 +249,7 @@ void Finish::end(int flag)
     }
   }
 
-  // PRD stats using PAIR,BOND,KSPACE for dephase,dynamics,quench
+  // PRD stats
 
   if (prdflag) {
     if (me == 0) {
@@ -329,7 +331,7 @@ void Finish::end(int flag)
     }
   }
 
-  // TAD stats using PAIR,BOND,KSPACE for neb,dynamics,quench
+  // TAD stats
 
   if (tadflag) {
     if (me == 0) {
@@ -415,7 +417,7 @@ void Finish::end(int flag)
     }
   }
 
-  // HYPER stats using PAIR,BOND,KSPACE for dynamics,quench
+  // HYPER stats
 
   if (hyperflag) {
     if (me == 0) {
@@ -687,10 +689,7 @@ void Finish::end(int flag)
     // allow it to be Kokkos neigh list as well
 
     for (m = 0; m < neighbor->old_nrequest; m++)
-      if ((neighbor->old_requests[m]->half ||
-           neighbor->old_requests[m]->gran ||
-           neighbor->old_requests[m]->respaouter ||
-           neighbor->old_requests[m]->half_from_full) &&
+      if (neighbor->old_requests[m]->half &&
           neighbor->old_requests[m]->skip == 0 &&
           neighbor->lists[m] && neighbor->lists[m]->numneigh) break;
 
@@ -912,7 +911,7 @@ void mpi_timings(const char *label, Timer *t, enum Timer::ttype tt,
   time_cpu = tmp/nprocs*100.0;
 
   // % variance from the average as measure of load imbalance
-  if ((time_sq/time - time) > 1.0e-10)
+  if ((time > 0.001) && ((time_sq/time - time) > 1.0e-10))
     time_sq = sqrt(time_sq/time - time)*100.0;
   else
     time_sq = 0.0;
@@ -964,7 +963,7 @@ void omp_times(FixOMP *fix, const char *label, enum Timer::ttype which,
   time_std /= nthreads;
   time_total /= nthreads;
 
-  if ((time_std/time_avg -time_avg) > 1.0e-10)
+  if ((time_avg > 0.001) && ((time_std/time_avg -time_avg) > 1.0e-10))
     time_std = sqrt(time_std/time_avg - time_avg)*100.0;
   else
     time_std = 0.0;

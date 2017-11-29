@@ -53,6 +53,8 @@ Force::Force(LAMMPS *lmp) : Pointers(lmp)
   special_extra = 0;
 
   dielectric = 1.0;
+  qqr2e_lammps_real = 332.06371;          // these constants are toggled
+  qqr2e_charmm_real = 332.0716;           // by new CHARMM pair styles
 
   pair = NULL;
   bond = NULL;
@@ -831,10 +833,6 @@ void Force::set_special(int narg, char **arg)
       else if (strcmp(arg[iarg+1],"yes") == 0) special_dihedral = 1;
       else error->all(FLERR,"Illegal special_bonds command");
       iarg += 2;
-    } else if (strcmp(arg[iarg],"extra") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal special_bonds command");
-      special_extra = atoi(arg[iarg+1]);
-      iarg += 2;
     } else error->all(FLERR,"Illegal special_bonds command");
   }
 
@@ -842,8 +840,6 @@ void Force::set_special(int narg, char **arg)
     if (special_lj[i] < 0.0 || special_lj[i] > 1.0 ||
         special_coul[i] < 0.0 || special_coul[i] > 1.0)
       error->all(FLERR,"Illegal special_bonds command");
-
-  if (special_extra < 0) error->all(FLERR,"Illegal special_bonds command");
 }
 
 /* ----------------------------------------------------------------------

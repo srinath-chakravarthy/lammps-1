@@ -10,9 +10,11 @@ replicate command :h3
 
 [Syntax:]
 
-replicate nx ny nz :pre
+replicate nx ny nz {keyword} :pre
 
-nx,ny,nz = replication factors in each dimension :ul
+nx,ny,nz = replication factors in each dimension :ulb
+optional {keyword} = {bbox} :l
+  {bbox} = only check atoms in replicas that overlap with a processor's subdomain :ule
 
 [Examples:]
 
@@ -43,6 +45,12 @@ file that crosses a periodic boundary should be between two atoms with
 image flags that differ by 1.  This will allow the bond to be
 unwrapped appropriately.
 
+The optional keyword {bbox} uses a bounding box to only check atoms
+in replicas that overlap with a processor's subdomain when assigning
+atoms to processors, and thus can result in substantial speedups for
+calculations using a large number of processors. It does require
+temporarily using more memory.
+
 [Restrictions:]
 
 A 2d simulation cannot be replicated in the z dimension.
@@ -53,7 +61,7 @@ top of each other.
 
 NOTE: You cannot use the replicate command on a system which has a
 molecule that spans the box and is bonded to itself across a periodic
-boundary, so that the molecule is efffectively a loop.  A simple
+boundary, so that the molecule is effectively a loop.  A simple
 example would be a linear polymer chain that spans the simulation box
 and bonds back to itself across the periodic boundary.  More realistic
 examples would be a CNT (meant to be an infinitely long CNT) or a

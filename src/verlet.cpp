@@ -85,14 +85,16 @@ void Verlet::init()
    setup before run
 ------------------------------------------------------------------------- */
 
-void Verlet::setup()
+void Verlet::setup(int flag)
 {
   if (comm->me == 0 && screen) {
     fprintf(screen,"Setting up Verlet run ...\n");
-    fprintf(screen,"  Unit style    : %s\n", update->unit_style);
-    fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n", update->ntimestep);
-    fprintf(screen,"  Time step     : %g\n", update->dt);
-    timer->print_timeout(screen);
+    if (flag) {
+      fprintf(screen,"  Unit style    : %s\n",update->unit_style);
+      fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n",update->ntimestep);
+      fprintf(screen,"  Time step     : %g\n",update->dt);
+      timer->print_timeout(screen);
+    }
   }
 
   if (lmp->kokkos)
@@ -119,6 +121,7 @@ void Verlet::setup()
   domain->box_too_small_check();
   modify->setup_pre_neighbor();
   neighbor->build();
+  modify->setup_post_neighbor();
   neighbor->ncalls = 0;
 
   // compute all forces
@@ -148,7 +151,7 @@ void Verlet::setup()
   if (force->newton) comm->reverse_comm();
 
   modify->setup(vflag);
-  output->setup();
+  output->setup(flag);
   update->setupflag = 0;
 }
 
@@ -180,6 +183,7 @@ void Verlet::setup_minimal(int flag)
     domain->box_too_small_check();
     modify->setup_pre_neighbor();
     neighbor->build();
+    modify->setup_post_neighbor();
     neighbor->ncalls = 0;
   }
 
@@ -224,6 +228,7 @@ void Verlet::run(int n)
   int n_post_integrate = modify->n_post_integrate;
   int n_pre_exchange = modify->n_pre_exchange;
   int n_pre_neighbor = modify->n_pre_neighbor;
+  int n_post_neighbor = modify->n_post_neighbor;
   int n_pre_force = modify->n_pre_force;
   int n_pre_reverse = modify->n_pre_reverse;
   int n_post_force = modify->n_post_force;
@@ -281,6 +286,10 @@ void Verlet::run(int n)
       }
       neighbor->build();
       timer->stamp(Timer::NEIGH);
+      if (n_post_neighbor) {
+        modify->post_neighbor();
+        timer->stamp(Timer::MODIFY);
+      }
     }
 
     // force computations

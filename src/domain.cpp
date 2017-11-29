@@ -60,6 +60,7 @@ enum{LAYOUT_UNIFORM,LAYOUT_NONUNIFORM,LAYOUT_TILED};    // several files
 Domain::Domain(LAMMPS *lmp) : Pointers(lmp)
 {
   box_exist = 0;
+  box_change = 0;
 
   dimension = 3;
   nonperiodic = 0;
@@ -514,7 +515,7 @@ void Domain::pbc()
 
   double *coord;
   int n3 = 3*nlocal;
-  coord = &x[0][0];  // note: x is always initialzed to at least one element.
+  coord = &x[0][0];  // note: x is always initialized to at least one element.
   int flag = 0;
   for (i = 0; i < n3; i++)
     if (!ISFINITE(*coord++)) flag = 1;
@@ -771,7 +772,7 @@ void Domain::image_check()
       delz = unwrap[i][2] - unwrap[k][2];
 
       if (xperiodic && delx > xprd_half) flag = 1;
-      if (xperiodic && dely > yprd_half) flag = 1;
+      if (yperiodic && dely > yprd_half) flag = 1;
       if (dimension == 3 && zperiodic && delz > zprd_half) flag = 1;
       if (!xperiodic && delx > xprd) flag = 1;
       if (!yperiodic && dely > yprd) flag = 1;
@@ -944,6 +945,10 @@ void Domain::subbox_too_small_check(double thresh)
    changed "if" to "while" to enable distance to
      far-away ghost atom returned by atom->map() to be wrapped back into box
      could be problem for looking up atom IDs when cutoff > boxsize
+   this should not be used if atom has moved infinitely far outside box
+     b/c while could iterate forever
+     e.g. fix shake prediction of new position with highly overlapped atoms
+     use minimum_image_once() instead
 ------------------------------------------------------------------------- */
 
 void Domain::minimum_image(double &dx, double &dy, double &dz)
@@ -1009,6 +1014,10 @@ void Domain::minimum_image(double &dx, double &dy, double &dz)
    changed "if" to "while" to enable distance to
      far-away ghost atom returned by atom->map() to be wrapped back into box
      could be problem for looking up atom IDs when cutoff > boxsize
+   this should not be used if atom has moved infinitely far outside box
+     b/c while could iterate forever
+     e.g. fix shake prediction of new position with highly overlapped atoms
+     use minimum_image_once() instead
 ------------------------------------------------------------------------- */
 
 void Domain::minimum_image(double *delta)
@@ -1068,6 +1077,70 @@ void Domain::minimum_image(double *delta)
 }
 
 /* ----------------------------------------------------------------------
+   minimum image convention in periodic dimensions
+   use 1/2 of box size as test
+   for triclinic, also add/subtract tilt factors in other dims as needed
+   only shift by one box length in each direction
+   this should not be used if multiple box shifts are required
+------------------------------------------------------------------------- */
+
+void Domain::minimum_image_once(double *delta)
+{
+  if (triclinic == 0) {
+    if (xperiodic) {
+      if (fabs(delta[0]) > xprd_half) {
+        if (delta[0] < 0.0) delta[0] += xprd;
+        else delta[0] -= xprd;
+      }
+    }
+    if (yperiodic) {
+      if (fabs(delta[1]) > yprd_half) {
+        if (delta[1] < 0.0) delta[1] += yprd;
+        else delta[1] -= yprd;
+      }
+    }
+    if (zperiodic) {
+      if (fabs(delta[2]) > zprd_half) {
+        if (delta[2] < 0.0) delta[2] += zprd;
+        else delta[2] -= zprd;
+      }
+    }
+
+  } else {
+    if (zperiodic) {
+      if (fabs(delta[2]) > zprd_half) {
+        if (delta[2] < 0.0) {
+          delta[2] += zprd;
+          delta[1] += yz;
+          delta[0] += xz;
+        } else {
+          delta[2] -= zprd;
+          delta[1] -= yz;
+          delta[0] -= xz;
+        }
+      }
+    }
+    if (yperiodic) {
+      if (fabs(delta[1]) > yprd_half) {
+        if (delta[1] < 0.0) {
+          delta[1] += yprd;
+          delta[0] += xy;
+        } else {
+          delta[1] -= yprd;
+          delta[0] -= xy;
+        }
+      }
+    }
+    if (xperiodic) {
+      if (fabs(delta[0]) > xprd_half) {
+        if (delta[0] < 0.0) delta[0] += xprd;
+        else delta[0] -= xprd;
+      }
+    }
+  }
+}
+
+/* ----------------------------------------------------------------------
    return local index of atom J or any of its images that is closest to atom I
    if J is not a valid index like -1, just return it
 ------------------------------------------------------------------------- */
@@ -1092,6 +1165,40 @@ int Domain::closest_image(int i, int j)
     delx = xi[0] - x[j][0];
     dely = xi[1] - x[j][1];
     delz = xi[2] - x[j][2];
+    rsq = delx*delx + dely*dely + delz*delz;
+    if (rsq < rsqmin) {
+      rsqmin = rsq;
+      closest = j;
+    }
+  }
+
+  return closest;
+}
+
+/* ----------------------------------------------------------------------
+   return local index of atom J or any of its images that is closest to pos
+   if J is not a valid index like -1, just return it
+------------------------------------------------------------------------- */
+
+int Domain::closest_image(double *pos, int j)
+{
+  if (j < 0) return j;
+
+  int *sametag = atom->sametag;
+  double **x = atom->x;
+
+  int closest = j;
+  double delx = pos[0] - x[j][0];
+  double dely = pos[1] - x[j][1];
+  double delz = pos[2] - x[j][2];
+  double rsqmin = delx*delx + dely*dely + delz*delz;
+  double rsq;
+
+  while (sametag[j] >= 0) {
+    j = sametag[j];
+    delx = pos[0] - x[j][0];
+    dely = pos[1] - x[j][1];
+    delz = pos[2] - x[j][2];
     rsq = delx*delx + dely*dely + delz*delz;
     if (rsq < rsqmin) {
       rsqmin = rsq;
@@ -1566,10 +1673,10 @@ int Domain::ownatom(int id, double *x, imageint *image, int shrinkexceed)
     if (coord[0] < blo[0] && boundary[0][0] > 1) newcoord[0] = blo[0];
     else if (coord[0] >= bhi[0] && boundary[0][1] > 1) newcoord[0] = bhi[0];
     else newcoord[0] = coord[0];
-    if (coord[1] < blo[1] && boundary[1][1] > 1) newcoord[1] = blo[1];
+    if (coord[1] < blo[1] && boundary[1][0] > 1) newcoord[1] = blo[1];
     else if (coord[1] >= bhi[1] && boundary[1][1] > 1) newcoord[1] = bhi[1];
     else newcoord[1] = coord[1];
-    if (coord[2] < blo[2] && boundary[2][2] > 1) newcoord[2] = blo[2];
+    if (coord[2] < blo[2] && boundary[2][0] > 1) newcoord[2] = blo[2];
     else if (coord[2] >= bhi[2] && boundary[2][1] > 1) newcoord[2] = bhi[2];
     else newcoord[2] = coord[2];
 
@@ -1591,6 +1698,7 @@ int Domain::ownatom(int id, double *x, imageint *image, int shrinkexceed)
 void Domain::set_lattice(int narg, char **arg)
 {
   if (lattice) delete lattice;
+  lattice = NULL;
   lattice = new Lattice(lmp,narg,arg);
 }
 
