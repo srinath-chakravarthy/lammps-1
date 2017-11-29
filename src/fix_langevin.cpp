@@ -63,6 +63,18 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
   extscalar = 1;
   nevery = 1;
 
+  
+  /* Flags to output per atom quantities 
+   */
+  peratom_flag = 1; /// Sets per atom quantity output
+  peratom_freq = 1; /// Set per atom output frequency 
+  size_peratom_cols = 0; /// Sets the size of per atom arrays/vectors
+  
+  /* Flags for restart
+   */ 
+  restart_peratom = 1; /// Save per atom state to restart file
+  
+  tstr = NULL;
   if (strstr(arg[3],"v_") == arg[3]) {
     int n = strlen(&arg[3][2]) + 1;
     tstr = new char[n];
@@ -98,7 +110,8 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
   oflag = 0;
   tallyflag = 0;
   zeroflag = 0;
-
+  stadflag = 0;
+  
   int iarg = 7;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"angmom") == 0) {
@@ -138,6 +151,27 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
       else if (strcmp(arg[iarg+1],"yes") == 0) zeroflag = 1;
       else error->all(FLERR,"Illegal fix langevin command");
       iarg += 2;
+/*  Stadium Langevin part of thermostat 
+    Check if flag is set to yes or no
+    if no, then do not check for anything else
+      if yes -> then check to make sure other arguments exist and need to exist
+      these are xmin, xmax, ymin, ymax and width
+*/
+    } else if (strcmp(arg[iarg],"stadium") == 0) { 
+      if (iarg+8 > narg) error->all(FLERR,"Illegal fix langevin command (stadium)");
+      s_xmin = force->numeric(FLERR,arg[iarg+1]);
+      s_xmax = force->numeric(FLERR,arg[iarg+2]);
+      s_ymin = force->numeric(FLERR,arg[iarg+3]);
+      s_ymax = force->numeric(FLERR,arg[iarg+4]);
+      s_zmin = force->numeric(FLERR,arg[iarg+5]);
+      s_zmax = force->numeric(FLERR,arg[iarg+6]);
+      s_width = force->numeric(FLERR,arg[iarg+7]);
+      if (s_xmin > s_xmax) error->all(FLERR, "Illegal stadium langevin, xmax must be greater than xmin");
+      if (s_ymin > s_ymax) error->all(FLERR, "Illegal stadium langevin, ymax must be greater than ymin");
+      if (s_zmin > s_zmax) error->all(FLERR, "Illegal stadium langevin, zmax must be greater than zmin");
+      if (s_width < 0.0) error->all(FLERR, "Illegal stadium langevin, width must be greater than 0.0");
+      stadflag = 1;
+      iarg += 8;
     } else error->all(FLERR,"Illegal fix langevin command");
   }
 
@@ -146,14 +180,11 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
   id_temp = NULL;
   temperature = NULL;
 
-  energy = 0.0;
-
   // flangevin is unallocated until first call to setup()
-  // compute_scalar checks for this and returns 0.0 
-  // if flangevin_allocated is not set
+  // compute_scalar checks for this and returns 0.0 if flangevin is NULL
 
+  energy = 0.0;
   flangevin = NULL;
-  flangevin_allocated = 0;
   franprev = NULL;
   tforce = NULL;
   maxatom1 = maxatom2 = 0;
@@ -176,7 +207,53 @@ FixLangevin::FixLangevin(LAMMPS *lmp, int narg, char **arg) :
       franprev[i][2] = 0.0;
     }
   }
+  // Setup atom-based array gamma_stadium 
+  // Allocate space and initialize to zero 
+  // grow_arrays method modified to include extra parameter integer 
+  //    that allows for the possibility of choosing either gamma_stadium or franprev
+  // Not sure of what atom_callback does, but it is called again here 
+  //   perhaps it should be instantiated only once of not already
+  gamma_stadium = NULL;
+  if (stadflag){
+    nvalues = 3;
+    grow_arrays(atom->nmax);
+    atom->add_callback(0);  /// Call back for new to grow arrays
+    atom->add_callback(1);  /// Call back for restart 
+    
+    // Initialize the stadium langevin peratom damping coefficient factor
+    // 	values are issued as scale factors which are equal to 1.0 - abs(min(x-xmin, x-xmax, y-ymin, y-max)
+    int nlocal = atom->nlocal;
+    for (int i = 0; i < nlocal; i++){
+      gamma_stadium[i] = 0.0;
+    }
+      // Stadium langevin initiliazation
+      if (stadflag){
+	int nlocal = atom->nlocal;
+	double **x = atom->x;
+	int *mask = atom->mask;
+	for (int i = 0; i < nlocal; i++){
+	  if (mask[i] & groupbit) {
+	    double x1 = fabs(x[i][0] - s_xmin);
+	    double x2 = fabs(x[i][0] - s_xmax);
+	    double y1 = fabs(x[i][1] - s_ymin);
+	    double y2 = fabs(x[i][1] - s_ymax);
+	    double z1 = fabs(x[i][2] - s_zmin);
+	    double z2 = fabs(x[i][2] - s_zmax);
 
+	    double dxy = (minvalue(x1, x2, y1, y2, z1, z2));
+	    gamma_stadium[i] = 1.0 - dxy/s_width;
+	  } else
+	  {
+	    gamma_stadium[i] = 0.0;
+	  }
+	}
+      }
+  }
+  //nrestart = size of per-atom restart data;
+  //nrestart = 1 + gamma_stadium;
+  nrestart = 1;
+  if (stadflag) nrestart++;
+  
   if (tallyflag && zeroflag && comm->me == 0)
     error->warning(FLERR,"Energy tally does not account for 'zero yes'");
 }
@@ -197,6 +274,11 @@ FixLangevin::~FixLangevin()
   if (gjfflag) {
     memory->destroy(franprev);
     atom->delete_callback(id,0);
+  }
+  if (stadflag){
+    memory->destroy(gamma_stadium);
+    atom->delete_callback(id,0);
+    atom->delete_callback(id,1);
   }
 }
 
@@ -280,7 +362,7 @@ void FixLangevin::init()
     nlevels_respa = ((Respa *) update->integrate)->nlevels;
 
   if (gjfflag) gjffac = 1.0/(1.0+update->dt/2.0/t_period);
-
+  
 }
 
 /* ---------------------------------------------------------------------- */
@@ -435,7 +517,7 @@ void FixLangevin::post_force(int vflag)
 	    else          post_force_templated<0,0,0,0,0,0>();
 #else
   post_force_untemplated(int(tstyle==ATOM), gjfflag, tallyflag,
-			 int(tbiasflag==BIAS), int(rmass!=NULL), zeroflag);
+			 int(tbiasflag==BIAS), int(rmass!=NULL), zeroflag, stadflag);
 #endif
 }
 
@@ -457,7 +539,7 @@ void FixLangevin::post_force_templated()
 #else
 void FixLangevin::post_force_untemplated
   (int Tp_TSTYLEATOM, int Tp_GJF, int Tp_TALLY,
-   int Tp_BIAS, int Tp_RMASS, int Tp_ZERO)
+   int Tp_BIAS, int Tp_RMASS, int Tp_ZERO, int Tp_stadflag)
 #endif
 {
   double gamma1,gamma2;
@@ -516,7 +598,6 @@ void FixLangevin::post_force_untemplated
       maxatom1 = atom->nmax;
       memory->create(flangevin,maxatom1,3,"langevin:flangevin");
     }
-    flangevin_allocated = 1;
   }
 
   if (Tp_BIAS) temperature->compute_scalar();
@@ -529,9 +610,26 @@ void FixLangevin::post_force_untemplated
 	gamma2 = sqrt(rmass[i]) * sqrt(24.0*boltz/t_period/dt/mvv2e) / ftm2v;
 	gamma1 *= 1.0/ratio[type[i]];
 	gamma2 *= 1.0/sqrt(ratio[type[i]]) * tsqrt;
+	
+	// Add stadium langevin to gamma factors 
+	if (Tp_stadflag){
+	  gamma1 *= gamma_stadium[i];
+	  gamma2 *= sqrt(gamma_stadium[i]);
+	}
       } else {
 	gamma1 = gfactor1[type[i]];
 	gamma2 = gfactor2[type[i]] * tsqrt;
+
+	// Add stadium langevin to gamma factors 
+	if (Tp_stadflag){
+	  gamma1 *= gamma_stadium[i];
+	  gamma2 *= sqrt(gamma_stadium[i]);
+	  if (!(isfinite(gamma1)) || !(isfinite(gamma2))){
+	    error->one(FLERR,"Fix langevin factors are infinite");
+	  }
+	}
+
+	
       }
 
       fran[0] = gamma2*(random->uniform()-0.5);
@@ -831,7 +929,7 @@ int FixLangevin::modify_param(int narg, char **arg)
 
 double FixLangevin::compute_scalar()
 {
-  if (!tallyflag || !flangevin_allocated) return 0.0;
+  if (!tallyflag || flangevin == NULL) return 0.0;
 
   // capture the very first energy transfer to thermal reservoir
 
@@ -880,8 +978,11 @@ double FixLangevin::memory_usage()
   if (gjfflag) bytes += atom->nmax*3 * sizeof(double);
   if (tallyflag) bytes += atom->nmax*3 * sizeof(double);
   if (tforce) bytes += atom->nmax * sizeof(double);
+  // Stadium Langevin memory usage
+  if (stadflag) bytes += atom->nmax * sizeof(double);
   return bytes;
 }
+
 
 /* ----------------------------------------------------------------------
    allocate atom-based array for franprev
@@ -889,7 +990,13 @@ double FixLangevin::memory_usage()
 
 void FixLangevin::grow_arrays(int nmax)
 {
-  memory->grow(franprev,nmax,3,"fix_langevin:franprev");
+  if (gjfflag) {
+    memory->grow(franprev,nmax,3,"fix_langevin:franprev");
+  } 
+  if (stadflag) {
+    memory->grow(gamma_stadium,nmax,"fix_langevin:gamma_stadium");
+    vector_atom = gamma_stadium;
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -898,8 +1005,13 @@ void FixLangevin::grow_arrays(int nmax)
 
 void FixLangevin::copy_arrays(int i, int j, int delflag)
 {
-  for (int m = 0; m < nvalues; m++)
-    franprev[j][m] = franprev[i][m];
+  if (gjfflag) {
+    for (int m = 0; m < nvalues; m++)
+      franprev[j][m] = franprev[i][m];
+  }
+  if (stadflag) {
+    gamma_stadium[j] = gamma_stadium[i];
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -908,8 +1020,18 @@ void FixLangevin::copy_arrays(int i, int j, int delflag)
 
 int FixLangevin::pack_exchange(int i, double *buf)
 {
-  for (int m = 0; m < nvalues; m++) buf[m] = franprev[i][m];
-  return nvalues;
+  int n = 0;
+  if (gjfflag) {
+    for (int m = 0; m < nvalues; m++) {
+      buf[n++] = franprev[i][m];
+    }
+    //return nvalues;
+  }
+  if (stadflag){
+    buf[n++] = gamma_stadium[i];
+  }
+  return n;
+
 }
 
 /* ----------------------------------------------------------------------
@@ -918,6 +1040,111 @@ int FixLangevin::pack_exchange(int i, double *buf)
 
 int FixLangevin::unpack_exchange(int nlocal, double *buf)
 {
-  for (int m = 0; m < nvalues; m++) franprev[nlocal][m] = buf[m];
-  return nvalues;
+  int n = 0;
+  if (gjfflag) {
+    for (int m = 0; m < nvalues; m++) {
+      franprev[nlocal][m] = buf[n++];
+    }
+  }
+  if (stadflag){
+    gamma_stadium[nlocal] = buf[n++];
+  }
+  return n;   
+}
+
+/* ----------------------------------------------------------------------
+   pack values in local atom-based arrays for restart file
+------------------------------------------------------------------------- */
+
+int FixLangevin::pack_restart(int i, double *buf)
+{
+  buf[0] = 2;
+  buf[1] = gamma_stadium[i];
+  return 2;
+}
+
+/* ----------------------------------------------------------------------
+   unpack values from atom->extra array to restart the fix
+------------------------------------------------------------------------- */
+
+void FixLangevin::unpack_restart(int nlocal, int nth)
+{
+  double **extra = atom->extra;
+
+  // skip to Nth set of extra values
+
+  int m = 0;
+  for (int i = 0; i < nth; i++) m += static_cast<int> (extra[nlocal][m]);
+  m++;
+
+  gamma_stadium[nlocal] = extra[nlocal][m++];
+}
+
+
+/* ----------------------------------------------------------------------
+   maxsize of any atom's restart data
+------------------------------------------------------------------------- */
+
+int FixLangevin::maxsize_restart()
+{
+  return 2;
+}
+
+/* ----------------------------------------------------------------------
+   size of atom nlocal's restart data
+------------------------------------------------------------------------- */
+
+int FixLangevin::size_restart(int nlocal)
+{
+  return 2;
+}
+
+
+/* ----------------------------------------------------------------------
+   Find minumum values of 4 given values 
+------------------------------------------------------------------------- */
+double FixLangevin::minvalue(double A, double B, double C, double D)
+{
+  double minval = 1.0e20;
+  if (A < minval){
+    minval = A;
+  }
+  if (B < minval){
+    minval = B;
+  }
+  if (C < minval){
+    minval = C;
+  }
+  if (D < minval){
+    minval = D;
+  }
+  return minval; 
+}
+
+/* ----------------------------------------------------------------------
+ * Overloaded 
+   Find minumum values of 6 given values 
+------------------------------------------------------------------------- */
+double FixLangevin::minvalue(double A, double B, double C, double D, double E, double F)
+{
+  double minval = 1.0e20;
+  if (A < minval){
+    minval = A;
+  }
+  if (B < minval){
+    minval = B;
+  }
+  if (C < minval){
+    minval = C;
+  }
+  if (D < minval){
+    minval = D;
+  }
+  if (E < minval){
+    minval = E;
+  }
+  if (F < minval){
+    minval = F;
+  }
+  return minval; 
 }
